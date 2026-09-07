@@ -37,6 +37,35 @@ def ensure_dir(path: Path) -> Path:
     return path
 
 
+def unique_output_path(path: Path) -> Path:
+    """
+    Return a non-existing output path.
+
+    Examples:
+        recording.mp4
+        recording (1).mp4
+        recording (2).mp4
+    """
+    path = path.expanduser()
+
+    if not path.exists():
+        return path
+
+    parent = path.parent
+    stem = path.stem
+    suffix = path.suffix
+
+    counter = 1
+
+    while True:
+        candidate = parent / f"{stem} ({counter}){suffix}"
+
+        if not candidate.exists():
+            return candidate
+
+        counter += 1
+
+
 def default_output_path(fmt: str = "mp4") -> Path:
     videos = Path.home() / "Videos"
     ensure_dir(videos)

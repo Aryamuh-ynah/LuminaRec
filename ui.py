@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 )
 from portal import PortalError, ScreenCastPortal
 from recorder import RecorderConfig, RecorderController
-from utils import WindowInfo, default_output_path, format_duration, human_size, is_wayland, list_x11_windows
+from utils import WindowInfo, default_output_path, format_duration, human_size, is_wayland, unique_output_path, list_x11_windows
 
 
 DARK_STYLE = """
@@ -408,6 +408,8 @@ class MainWindow(QMainWindow):
         self.region: dict[str, int] | None = None
         self.window_info: WindowInfo | None = None
         self._dark = True
+        self._output_is_manual = False
+        self._manual_output_path: Path | None = None
         self._build_ui()
         self._apply_theme()
         self._install_hotkey()
@@ -557,7 +559,14 @@ class MainWindow(QMainWindow):
         self.output_label = QLineEdit(
             str(default_output_path("mp4"))
         )
-        self.output_label.setReadOnly(True)
+
+        self.output_label.setReadOnly(False)
+
+        self.output_label.textEdited.connect(
+            self._output_path_edited
+        )
+
+
         self.output_label.setMinimumHeight(38)
         self.output_label.setSizePolicy(
             QSizePolicy.Expanding,
@@ -683,6 +692,19 @@ class MainWindow(QMainWindow):
         outer.addWidget(hint)
 
 
+    def _output_path_edited(self, text: str) -> None:
+        """Remember filenames explicitly typed by the user."""
+        text = text.strip()
+
+        if not text:
+            self._output_is_manual = False
+            self._manual_output_path = None
+            return
+
+        self._output_is_manual = True
+        self._manual_output_path = Path(text).expanduser()
+
+
     def _apply_theme(self) -> None:
         QApplication.instance().setStyleSheet(DARK_STYLE if self._dark else LIGHT_STYLE)
         self.theme_btn.setText("Light theme" if self._dark else "Dark theme")
@@ -704,20 +726,139 @@ class MainWindow(QMainWindow):
             except Exception:
                 self._global_hotkeys = None
 
-    def _format_changed(self) -> None:
+    def _format_changed(self, _index: int = -1) -> None:
         fmt = self.format.currentData()
-        path = Path(self.output_label.text())
-        self.output_label.setText(str(path.with_suffix("." + fmt)))
+
+        suffix = ".mp4" if fmt == "mp4" else ".webm"
+
+        if (
+            self._output_is_manual
+            and self._manual_output_path is not None
+        ):
+            path = self._manual_output_path.with_suffix(
+                suffix
+            )
+
+            self._manual_output_path = path
+            self.output_label.setText(str(path))
+            return
+
+        self.output_label.setText(
+            str(default_output_path(fmt))
+        )
+
+    def _prepare_output_path(self) -> Path:
+        """
+        Determine the output path for the next recording.
+
+        Rules:
+
+        1. Automatic filename:
+        Generate a new timestamp filename every time recording starts.
+
+        2. Manual filename:
+        Keep the user's original filename as the base name and add
+        (1), (2), ... when necessary.
+        """
+        fmt = self.format.currentData()
+
+        expected_suffix = ".mp4" if fmt == "mp4" else ".webm"
+
+        # ---------------------------------------------------------
+        # Manual filename
+        # ---------------------------------------------------------
+        if (
+            self._output_is_manual
+            and self._manual_output_path is not None
+        ):
+            base_path = self._manual_output_path.expanduser()
+
+            # Match the extension with the selected format.
+            if base_path.suffix.lower() != expected_suffix:
+                base_path = base_path.with_suffix(expected_suffix)
+
+                # Keep our manual BASE filename synchronized.
+                self._manual_output_path = base_path
+
+        # ---------------------------------------------------------
+        # Automatic filename
+        # ---------------------------------------------------------
+        else:
+            # Generate a NEW timestamp every time Start is pressed.
+            base_path = default_output_path(fmt)
+
+        # Never overwrite an existing file.
+        output_path = unique_output_path(base_path)
+
+        # Make sure the directory exists.
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        # Show the actual file that will be recorded.
+        self.output_label.setText(str(output_path))
+
+        return output_path
+
+
+
 
     def _choose_output(self) -> None:
         fmt = self.format.currentData()
-        filt = "MP4 video (*.mp4)" if fmt == "mp4" else "WebM video (*.webm)"
-        path, _ = QFileDialog.getSaveFileName(self, "Save recording", self.output_label.text(), filt)
-        if path:
-            p = Path(path)
-            if p.suffix.lower() != "." + fmt:
-                p = p.with_suffix("." + fmt)
-            self.output_label.setText(str(p))
+
+        extension = ".mp4" if fmt == "mp4" else ".webm"
+
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle("Choose recording file")
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+
+        # We handle duplicate filenames ourselves using (1), (2), ...
+        dialog.setOption(
+            QFileDialog.Option.DontConfirmOverwrite,
+            True,
+        )
+
+        if fmt == "mp4":
+            dialog.setNameFilter("MP4 Video (*.mp4)")
+        else:
+            dialog.setNameFilter("WebM Video (*.webm)")
+
+        current = Path(
+            self.output_label.text()
+        ).expanduser()
+
+        dialog.setDirectory(str(current.parent))
+        dialog.selectFile(current.name)
+
+        if not dialog.exec():
+            return
+
+        files = dialog.selectedFiles()
+
+        if not files:
+            return
+
+        path = Path(files[0]).expanduser()
+
+        # Ensure extension matches the selected format.
+        if path.suffix.lower() != extension:
+            path = path.with_suffix(extension)
+
+        # Important:
+        # Store the ORIGINAL filename selected by the user.
+        #
+        # We do not replace this with demo (1).mp4 later,
+        # otherwise the following recording could become:
+        #
+        # demo (1) (1).mp4
+        self._output_is_manual = True
+        self._manual_output_path = path
+
+        self.output_label.setText(str(path))
+
+
 
     def _pick_region(
         self,
@@ -840,14 +981,14 @@ class MainWindow(QMainWindow):
         # ---------------------------------------------------------
         # Build recorder configuration
         # ---------------------------------------------------------
+
+        output_path = self._prepare_output_path()
         config = RecorderConfig(
             mode=mode,
             fps=int(self.fps.currentData()),
             format=self.format.currentData(),
             audio=self.audio.currentData(),
-            output=Path(
-                self.output_label.text()
-            ).expanduser(),
+            output=output_path,
             preview=self.preview_toggle.isChecked(),
             region=region,
 
