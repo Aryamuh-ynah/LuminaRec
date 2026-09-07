@@ -1,4 +1,4 @@
-# Luma Recorder — Python screen recorder for Ubuntu/Linux
+# LuminaRec Recorder — Python screen recorder for Ubuntu/Linux
 
 A modular PySide6 screen recorder that uses **MSS on X11**, the **XDG Desktop Portal + PipeWire on Wayland**, and **FFmpeg for all encoding/muxing**.
 
@@ -54,7 +54,7 @@ MSS captures BGRA frames directly from the X11 desktop. Region and selected-wind
 
 ### Wayland
 
-Wayland intentionally prevents ordinary applications from reading arbitrary screen pixels. Luma Recorder asks `org.freedesktop.portal.ScreenCast` for permission. The compositor returns a permission-scoped PipeWire stream and file descriptor. A small GStreamer bridge converts that stream to raw `BGRx` frames; the frames are then fed to FFmpeg, which performs the actual H.264/VP9 and audio encoding.
+Wayland intentionally prevents ordinary applications from reading arbitrary screen pixels. LuminaRec Recorder asks `org.freedesktop.portal.ScreenCast` for permission. The compositor returns a permission-scoped PipeWire stream and file descriptor. A small GStreamer bridge converts that stream to raw `BGRx` frames; the frames are then fed to FFmpeg, which performs the actual H.264/VP9 and audio encoding.
 
 For **Window** mode on Wayland, the compositor's portal dialog is the window selector. Applications are not generally permitted to enumerate every other application's Wayland windows.
 
