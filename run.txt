@@ -1,0 +1,22 @@
+chmod +x launch.sh
+
+APP_DIR="$(pwd)"
+
+mkdir -p ~/.local/share/applications
+
+cat > ~/.local/share/applications/luminarec.desktop <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LuminaRec
+Comment=Screen Recorder for Linux
+Exec=$APP_DIR/launch.sh
+Path=$APP_DIR
+Icon=$APP_DIR/assets/Luminarec.png
+Terminal=false
+Categories=AudioVideo;Recorder;
+StartupNotify=true
+Keywords=screen;record;recorder;video;
+EOF
+
+chmod +x ~/.local/share/applications/luminarec.desktop
