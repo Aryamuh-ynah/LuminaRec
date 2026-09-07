@@ -15,7 +15,7 @@ from typing import Callable, Literal
 import mss
 import numpy as np
 
-from portal import PortalError, ScreenCastPortal
+from portal import PortalError, PortalStream, ScreenCastPortal
 from utils import command_exists, is_wayland, pulse_default_sink_monitor, pulse_default_source
 
 Mode = Literal["full", "region", "window"]
@@ -32,6 +32,10 @@ class RecorderConfig:
     output: Path
     preview: bool
     region: dict[str, int] | None = None
+
+    # Wayland pre-selected portal resources.
+    portal: ScreenCastPortal | None = None
+    portal_stream: PortalStream | None = None
 
 
 @dataclass
@@ -95,24 +99,40 @@ class MSSCaptureBackend(CaptureBackend):
 class PortalPipeWireBackend(CaptureBackend):
     """Wayland backend: portal grants PipeWire; GStreamer converts it to BGRA-like BGRx frames."""
 
-    def __init__(self, mode: Mode, fps: int, region: dict[str, int] | None) -> None:
+    def __init__(
+        self,
+        mode: Mode,
+        fps: int,
+        region: dict[str, int] | None,
+        portal: ScreenCastPortal | None = None,
+        stream: PortalStream | None = None,
+    ) -> None:
         self.mode = mode
         self.fps = fps
         self.requested_region = region
-        self.portal: ScreenCastPortal | None = None
-        self.stream = None
+
+        self.portal = portal
+        self.stream = stream
+
         self.proc: subprocess.Popen[bytes] | None = None
         self.width = 0
         self.height = 0
         self._buffer = bytearray()
         self._crop: tuple[int, int, int, int] | None = None
 
+
     def prepare(self) -> None:
         if not command_exists("gst-launch-1.0"):
             raise RuntimeError("Wayland capture requires GStreamer. Install gstreamer1.0-tools and gstreamer1.0-pipewire.")
-        self.portal = ScreenCastPortal()
-        source_type = 2 if self.mode == "window" else 1
-        self.stream = self.portal.open(source_type)
+        # Region mode may already have a portal stream because the monitor
+        # must be selected before showing our region overlay.
+        if self.stream is None:
+            if self.portal is None:
+                self.portal = ScreenCastPortal()
+
+            source_type = 2 if self.mode == "window" else 1
+            self.stream = self.portal.open(source_type)
+
 
         if self.mode == "region":
             if not self.requested_region:
@@ -399,7 +419,14 @@ class RecorderController:
 
     def _make_backend(self, config: RecorderConfig) -> CaptureBackend:
         if is_wayland():
-            return PortalPipeWireBackend(config.mode, config.fps, config.region)
+            return PortalPipeWireBackend(
+                mode=config.mode,
+                fps=config.fps,
+                region=config.region,
+                portal=config.portal,
+                stream=config.portal_stream,
+            )
+
         return MSSCaptureBackend(config.region)
 
     def _concat_segments(self, segments: list[Path], output: Path) -> None:

@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
+from portal import PortalError, ScreenCastPortal
 from recorder import RecorderConfig, RecorderController
 from utils import WindowInfo, default_output_path, format_duration, human_size, is_wayland, list_x11_windows
 
@@ -285,15 +285,31 @@ class Bridge(QObject):
 
 
 class RegionSelector(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        capture_geometry: QRect | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+
+        self.setWindowFlags(
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+        )
+
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setCursor(Qt.CrossCursor)
+
         self.origin: QPoint | None = None
         self.current: QPoint | None = None
-        virtual = QGuiApplication.primaryScreen().virtualGeometry()
-        self.setGeometry(virtual)
+
+        if capture_geometry is None:
+            capture_geometry = (
+                QGuiApplication.primaryScreen().virtualGeometry()
+            )
+
+        self.setGeometry(capture_geometry)
 
     def selection_global(self) -> dict[str, int] | None:
         if self.origin is None or self.current is None:
@@ -703,10 +719,23 @@ class MainWindow(QMainWindow):
                 p = p.with_suffix("." + fmt)
             self.output_label.setText(str(p))
 
-    def _pick_region(self) -> bool:
-        selector = RegionSelector(self)
+    def _pick_region(
+        self,
+        geometry: QRect | None = None,
+    ) -> bool:
+        # On Wayland don't parent the overlay when a specific monitor
+        # has already been selected. A compositor may otherwise keep
+        # the dialog on the parent's monitor.
+        parent = None if geometry is not None and is_wayland() else self
+
+        selector = RegionSelector(
+            capture_geometry=geometry,
+            parent=parent,
+        )
+
         if selector.exec() != QDialog.Accepted:
             return False
+
         self.region = selector.selection_global()
         return self.region is not None
 
@@ -728,38 +757,135 @@ class MainWindow(QMainWindow):
 
     def _toggle_recording(self) -> None:
         state = self.recorder.stats().state
+
         if state in ("starting", "recording", "paused"):
-            self.recorder.stop(); return
+            self.recorder.stop()
+            return
+
         if state == "finalizing":
             return
+
         mode = self.mode.currentData()
-        self.region = None; self.window_info = None
-        if mode == "region" and not self._pick_region():
-            return
-        if mode == "window" and not self._pick_window():
-            return
+
+        self.region = None
+        self.window_info = None
+
+        wayland_portal = None
+        wayland_stream = None
+
+        # ---------------------------------------------------------
+        # REGION
+        # ---------------------------------------------------------
+        if mode == "region":
+            if is_wayland():
+                try:
+                    # STEP 1:
+                    # Ask Wayland/portal which monitor should be shared.
+                    wayland_portal = ScreenCastPortal()
+
+                    # type 1 = MONITOR
+                    wayland_stream = wayland_portal.open(1)
+
+                except Exception as exc:
+                    if wayland_portal is not None:
+                        wayland_portal.close()
+
+                    QMessageBox.critical(
+                        self,
+                        "Screen selection failed",
+                        str(exc),
+                    )
+                    return
+
+                # STEP 2:
+                # Now that we know which monitor was selected,
+                # show the region selector only inside that monitor.
+                monitor_geometry = QRect(
+                    wayland_stream.x,
+                    wayland_stream.y,
+                    wayland_stream.width,
+                    wayland_stream.height,
+                )
+
+                if not self._pick_region(monitor_geometry):
+                    # User pressed Esc / cancelled the region selection.
+                    try:
+                        os.close(wayland_stream.fd)
+                    except OSError:
+                        pass
+
+                    wayland_portal.close()
+                    return
+
+            else:
+                # X11 keeps the existing behavior.
+                if not self._pick_region():
+                    return
+
+        # ---------------------------------------------------------
+        # WINDOW
+        # ---------------------------------------------------------
+        if mode == "window":
+            if not self._pick_window():
+                return
+
+        # ---------------------------------------------------------
+        # Resolve capture rectangle
+        # ---------------------------------------------------------
         region = self.region
+
         if mode == "window" and self.window_info is not None:
             region = self.window_info.region
+
+        # ---------------------------------------------------------
+        # Build recorder configuration
+        # ---------------------------------------------------------
         config = RecorderConfig(
             mode=mode,
             fps=int(self.fps.currentData()),
             format=self.format.currentData(),
             audio=self.audio.currentData(),
-            output=Path(self.output_label.text()).expanduser(),
+            output=Path(
+                self.output_label.text()
+            ).expanduser(),
             preview=self.preview_toggle.isChecked(),
             region=region,
+
+            # For Wayland Region mode these are already selected.
+            portal=wayland_portal,
+            portal_stream=wayland_stream,
         )
+
         try:
             self.recorder.start(
                 config,
-                preview_cb=lambda frame: self.bridge.preview.emit(frame.copy()),
+                preview_cb=lambda frame: self.bridge.preview.emit(
+                    frame.copy()
+                ),
                 state_cb=self.bridge.state.emit,
                 error_cb=self.bridge.error.emit,
                 finished_cb=self.bridge.finished.emit,
             )
+
         except Exception as exc:
-            QMessageBox.critical(self, "Could not start recording", str(exc))
+            # Recorder did not take ownership, so clean up the portal.
+            if wayland_stream is not None:
+                try:
+                    os.close(wayland_stream.fd)
+                except OSError:
+                    pass
+
+            if wayland_portal is not None:
+                wayland_portal.close()
+
+            QMessageBox.critical(
+                self,
+                "Could not start recording",
+                str(exc),
+            )
+
+
+
 
     def _pause_resume(self) -> None:
         state = self.recorder.stats().state
