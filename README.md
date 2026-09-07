@@ -19,6 +19,12 @@ A modular PySide6 screen recorder that uses **MSS on X11**, the **XDG Desktop Po
 
 ## Ubuntu 22.04 / 24.04 installation
 
+Clone the repo:
+
+```bash
+git clone https://github.com/Aryamuh-ynah/LuminaRec.git
+```
+
 Install system packages:
 
 ```bash
@@ -33,7 +39,7 @@ sudo apt install -y \
 Create a virtual environment and install Python dependencies:
 
 ```bash
-cd ubuntu_screen_recorder
+cd LuminaRec
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
