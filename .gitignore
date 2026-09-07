@@ -1,0 +1,73 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build output
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# IDE / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs / temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.pid
+
+# Local configuration / environment variables
+.env
+.env.*
+!.env.example
+
+# Recorded media and large generated outputs
+*.mp4
+*.webm
+*.mkv
+*.avi
+*.mov
+*.wav
+*.mp3
+*.flac
+
+# Temporary recording segments / concat manifests
+segments/
+temp_segments/
+recordings_tmp/
+*.concat.txt
+
+# Qt / application runtime artifacts
+*.qmlc
+*.jsc
+
+# Coverage / profiling
+.prof
+*.prof
+
+# Local output directories
+output/
+recordings/
