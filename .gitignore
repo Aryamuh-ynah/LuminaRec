@@ -71,3 +71,4 @@ recordings_tmp/
 # Local output directories
 output/
 recordings/
+*.zip

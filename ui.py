@@ -7,10 +7,26 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal, QObject
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame,
-    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
-    QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from recorder import RecorderConfig, RecorderController
@@ -18,28 +34,245 @@ from utils import WindowInfo, default_output_path, format_duration, human_size, 
 
 
 DARK_STYLE = """
-QWidget { background:#15171a; color:#e9edf1; font-size:14px; }
-QMainWindow { background:#111316; }
-QFrame#card { background:#1c2025; border:1px solid #2b3138; border-radius:14px; }
-QComboBox, QPushButton, QLineEdit, QListWidget { background:#252a31; border:1px solid #343b44; border-radius:9px; padding:8px; }
-QComboBox:hover, QPushButton:hover { border-color:#6a7cff; }
-QPushButton#startButton { background:#5b6cff; color:white; border:0; border-radius:16px; font-size:22px; font-weight:700; padding:18px; }
-QPushButton#startButton[recording="true"] { background:#d84a57; }
-QPushButton:disabled { color:#747b84; background:#20242a; }
-QLabel#timer { font-size:34px; font-weight:700; }
-QLabel#muted { color:#9aa4af; }
-QCheckBox { spacing:8px; }
+QWidget {
+    color: #e9edf1;
+    font-size: 14px;
+}
+
+QMainWindow,
+QWidget#rootWidget {
+    background: #111316;
+}
+
+QFrame#card {
+    background: #1c2025;
+    border: 1px solid #2b3138;
+    border-radius: 14px;
+}
+
+/* Prevent ugly dark rectangles behind text */
+QLabel,
+QCheckBox {
+    background: transparent;
+    border: none;
+}
+
+QLabel#muted {
+    color: #9aa4af;
+}
+
+QLabel#timer {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+QComboBox,
+QLineEdit,
+QListWidget {
+    background: #252a31;
+    color: #e9edf1;
+    border: 1px solid #343b44;
+    border-radius: 9px;
+    padding: 7px 10px;
+    selection-background-color: #5b6cff;
+}
+
+QComboBox:hover,
+QLineEdit:hover {
+    border-color: #4d5866;
+}
+
+QComboBox:focus,
+QLineEdit:focus {
+    border-color: #6a7cff;
+}
+
+QComboBox::drop-down {
+    width: 28px;
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background: #252a31;
+    color: #e9edf1;
+    border: 1px solid #343b44;
+    selection-background-color: #5b6cff;
+    outline: none;
+}
+
+QLineEdit:read-only {
+    background: #16191d;
+    color: #d5dbe2;
+}
+
+QPushButton {
+    background: #252a31;
+    color: #e9edf1;
+    border: 1px solid #343b44;
+    border-radius: 9px;
+    padding: 8px 12px;
+}
+
+QPushButton:hover {
+    background: #2b3038;
+    border-color: #6a7cff;
+}
+
+QPushButton:pressed {
+    background: #20242a;
+}
+
+QPushButton:disabled {
+    color: #747b84;
+    background: #20242a;
+    border-color: #292e34;
+}
+
+QPushButton#startButton {
+    background: #5b6cff;
+    color: white;
+    border: none;
+    border-radius: 13px;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 12px 18px;
+}
+
+QPushButton#startButton:hover {
+    background: #6878ff;
+}
+
+QPushButton#startButton[recording="true"] {
+    background: #d84a57;
+}
+
+QPushButton#startButton[recording="true"]:hover {
+    background: #e15360;
+}
+
+QCheckBox {
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 17px;
+    height: 17px;
+}
 """
 
 LIGHT_STYLE = """
-QWidget { background:#f5f6f8; color:#1c232b; font-size:14px; }
-QMainWindow { background:#eef0f3; }
-QFrame#card { background:white; border:1px solid #d7dce2; border-radius:14px; }
-QComboBox, QPushButton, QLineEdit, QListWidget { background:white; border:1px solid #cfd5dc; border-radius:9px; padding:8px; }
-QPushButton#startButton { background:#5366ee; color:white; border:0; border-radius:16px; font-size:22px; font-weight:700; padding:18px; }
-QPushButton#startButton[recording="true"] { background:#d84a57; }
-QLabel#timer { font-size:34px; font-weight:700; }
-QLabel#muted { color:#67717d; }
+QWidget {
+    color: #1c232b;
+    font-size: 14px;
+}
+
+QMainWindow,
+QWidget#rootWidget {
+    background: #eef0f3;
+}
+
+QFrame#card {
+    background: #ffffff;
+    border: 1px solid #d7dce2;
+    border-radius: 14px;
+}
+
+QLabel,
+QCheckBox {
+    background: transparent;
+    border: none;
+}
+
+QLabel#muted {
+    color: #67717d;
+}
+
+QLabel#timer {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+QComboBox,
+QLineEdit,
+QListWidget {
+    background: #ffffff;
+    color: #1c232b;
+    border: 1px solid #cfd5dc;
+    border-radius: 9px;
+    padding: 7px 10px;
+    selection-background-color: #5366ee;
+}
+
+QComboBox:hover,
+QLineEdit:hover {
+    border-color: #9da7b3;
+}
+
+QComboBox:focus,
+QLineEdit:focus {
+    border-color: #5366ee;
+}
+
+QComboBox::drop-down {
+    width: 28px;
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background: white;
+    color: #1c232b;
+    border: 1px solid #cfd5dc;
+    selection-background-color: #5366ee;
+}
+
+QLineEdit:read-only {
+    background: #f7f8fa;
+}
+
+QPushButton {
+    background: #ffffff;
+    color: #1c232b;
+    border: 1px solid #cfd5dc;
+    border-radius: 9px;
+    padding: 8px 12px;
+}
+
+QPushButton:hover {
+    background: #f4f5f8;
+    border-color: #5366ee;
+}
+
+QPushButton:disabled {
+    color: #9da5ae;
+    background: #eceef1;
+}
+
+QPushButton#startButton {
+    background: #5366ee;
+    color: white;
+    border: none;
+    border-radius: 13px;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 12px 18px;
+}
+
+QPushButton#startButton:hover {
+    background: #6475f1;
+}
+
+QPushButton#startButton[recording="true"] {
+    background: #d84a57;
+}
+
+QCheckBox {
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 17px;
+    height: 17px;
+}
 """
 
 
@@ -147,8 +380,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Luma Recorder")
-        self.resize(900, 680)
-        self.setMinimumSize(720, 560)
+        self.resize(940, 700)
+        self.setMinimumSize(720, 620)
         self.recorder = RecorderController()
         self.bridge = Bridge()
         self.bridge.preview.connect(self._show_preview)
@@ -166,62 +399,273 @@ class MainWindow(QMainWindow):
         self.stats_timer.timeout.connect(self._update_stats)
         self.stats_timer.start(250)
 
-    def _build_ui(self) -> None:
-        root = QWidget(); self.setCentralWidget(root)
-        outer = QVBoxLayout(root); outer.setContentsMargins(24, 24, 24, 24); outer.setSpacing(16)
 
+
+
+    def _build_ui(self) -> None:
+        root = QWidget()
+        root.setObjectName("rootWidget")
+        self.setCentralWidget(root)
+
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(22, 20, 22, 18)
+        outer.setSpacing(12)
+
+        # ---------------------------------------------------------
+        # Header
+        # ---------------------------------------------------------
         top = QHBoxLayout()
+        top.setSpacing(12)
+
         title_col = QVBoxLayout()
-        title = QLabel("Luma Recorder"); title.setStyleSheet("font-size:26px;font-weight:800;")
-        sub = QLabel("Fast X11 capture • secure Wayland portal capture"); sub.setObjectName("muted")
-        title_col.addWidget(title); title_col.addWidget(sub)
-        top.addLayout(title_col); top.addStretch(1)
+        title_col.setSpacing(4)
+
+        title = QLabel("Luma Recorder")
+        title.setStyleSheet(
+            "font-size: 26px; font-weight: 800;"
+        )
+
+        sub = QLabel(
+            "Fast X11 capture • secure Wayland portal capture"
+        )
+        sub.setObjectName("muted")
+
+        title_col.addWidget(title)
+        title_col.addWidget(sub)
+
+        top.addLayout(title_col)
+        top.addStretch(1)
+
         self.theme_btn = QPushButton("Light theme")
+        self.theme_btn.setMinimumHeight(36)
         self.theme_btn.clicked.connect(self._toggle_theme)
+
         top.addWidget(self.theme_btn)
+
         outer.addLayout(top)
 
-        card = QFrame(); card.setObjectName("card")
-        form = QFormLayout(card); form.setContentsMargins(20,20,20,20); form.setHorizontalSpacing(18); form.setVerticalSpacing(14)
-        self.mode = QComboBox(); self.mode.addItem("Full Screen", "full"); self.mode.addItem("Region", "region"); self.mode.addItem("Window", "window")
-        self.fps = QComboBox(); [self.fps.addItem(str(x), x) for x in (15,24,30,60)]; self.fps.setCurrentText("30")
-        self.format = QComboBox(); self.format.addItem("MP4 — H.264", "mp4"); self.format.addItem("WebM — VP9", "webm")
-        self.audio = QComboBox(); self.audio.addItem("None", "none"); self.audio.addItem("Microphone", "mic"); self.audio.addItem("System audio", "system"); self.audio.addItem("Mic + System", "both")
-        self.preview_toggle = QCheckBox("Show live preview"); self.preview_toggle.setChecked(True)
-        form.addRow("Capture mode", self.mode); form.addRow("Frames / second", self.fps); form.addRow("Output format", self.format); form.addRow("Audio", self.audio); form.addRow("Preview", self.preview_toggle)
-        outer.addWidget(card)
+        # ---------------------------------------------------------
+        # Recording settings
+        # ---------------------------------------------------------
+        settings_card = QFrame()
+        settings_card.setObjectName("card")
+        settings_card.setMinimumHeight(158)
 
-        output_card = QFrame(); output_card.setObjectName("card")
-        out_layout = QHBoxLayout(output_card); out_layout.setContentsMargins(20,16,20,16)
-        self.output_label = QLabel(str(default_output_path("mp4"))); self.output_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.output_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        browse = QPushButton("Choose…"); browse.clicked.connect(self._choose_output)
-        out_layout.addWidget(QLabel("Save to")); out_layout.addWidget(self.output_label, 1); out_layout.addWidget(browse)
+        settings = QGridLayout(settings_card)
+        settings.setContentsMargins(18, 16, 18, 16)
+        settings.setHorizontalSpacing(14)
+        settings.setVerticalSpacing(10)
+
+        self.mode = QComboBox()
+        self.mode.addItem("Full Screen", "full")
+        self.mode.addItem("Region", "region")
+        self.mode.addItem("Window", "window")
+
+        self.fps = QComboBox()
+        for value in (15, 24, 30, 60):
+            self.fps.addItem(str(value), value)
+        self.fps.setCurrentText("30")
+
+        self.format = QComboBox()
+        self.format.addItem("MP4 — H.264", "mp4")
+        self.format.addItem("WebM — VP9", "webm")
+
+        self.audio = QComboBox()
+        self.audio.addItem("None", "none")
+        self.audio.addItem("Microphone", "mic")
+        self.audio.addItem("System audio", "system")
+        self.audio.addItem("Mic + System", "both")
+
+        # Prevent combo boxes from ever collapsing into thin lines.
+        for combo in (
+            self.mode,
+            self.fps,
+            self.format,
+            self.audio,
+        ):
+            combo.setMinimumHeight(38)
+            combo.setSizePolicy(
+                QSizePolicy.Expanding,
+                QSizePolicy.Fixed,
+            )
+
+        capture_label = QLabel("Capture mode")
+        fps_label = QLabel("Frames / second")
+        format_label = QLabel("Output format")
+        audio_label = QLabel("Audio")
+
+        settings.addWidget(capture_label, 0, 0)
+        settings.addWidget(self.mode, 0, 1)
+
+        settings.addWidget(fps_label, 0, 2)
+        settings.addWidget(self.fps, 0, 3)
+
+        settings.addWidget(format_label, 1, 0)
+        settings.addWidget(self.format, 1, 1)
+
+        settings.addWidget(audio_label, 1, 2)
+        settings.addWidget(self.audio, 1, 3)
+
+        self.preview_toggle = QCheckBox("Show live preview")
+        self.preview_toggle.setChecked(True)
+
+        settings.addWidget(
+            self.preview_toggle,
+            2,
+            0,
+            1,
+            4,
+        )
+
+        settings.setColumnMinimumWidth(0, 100)
+        settings.setColumnMinimumWidth(2, 105)
+
+        settings.setColumnStretch(1, 1)
+        settings.setColumnStretch(3, 1)
+
+        outer.addWidget(settings_card)
+
+        # ---------------------------------------------------------
+        # Output path
+        # ---------------------------------------------------------
+        output_card = QFrame()
+        output_card.setObjectName("card")
+
+        output_layout = QHBoxLayout(output_card)
+        output_layout.setContentsMargins(18, 13, 18, 13)
+        output_layout.setSpacing(10)
+
+        save_label = QLabel("Save to")
+        save_label.setMinimumWidth(52)
+
+        self.output_label = QLineEdit(
+            str(default_output_path("mp4"))
+        )
+        self.output_label.setReadOnly(True)
+        self.output_label.setMinimumHeight(38)
+        self.output_label.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+
+        browse = QPushButton("Choose…")
+        browse.setMinimumHeight(38)
+        browse.setMinimumWidth(88)
+        browse.clicked.connect(self._choose_output)
+
+        output_layout.addWidget(save_label)
+        output_layout.addWidget(self.output_label, 1)
+        output_layout.addWidget(browse)
+
         outer.addWidget(output_card)
-        self.format.currentIndexChanged.connect(self._format_changed)
 
-        stats_card = QFrame(); stats_card.setObjectName("card")
-        stats = QHBoxLayout(stats_card); stats.setContentsMargins(20,18,20,18)
-        self.timer_label = QLabel("00:00:00"); self.timer_label.setObjectName("timer")
-        status_col = QVBoxLayout(); self.status_label = QLabel("Ready"); self.status_label.setStyleSheet("font-weight:700;")
-        self.detail_label = QLabel("0.0 FPS • 0 B"); self.detail_label.setObjectName("muted")
-        status_col.addWidget(self.status_label); status_col.addWidget(self.detail_label)
-        stats.addWidget(self.timer_label); stats.addSpacing(28); stats.addLayout(status_col); stats.addStretch(1)
+        self.format.currentIndexChanged.connect(
+            self._format_changed
+        )
+
+        # ---------------------------------------------------------
+        # Recording information
+        # ---------------------------------------------------------
+        stats_card = QFrame()
+        stats_card.setObjectName("card")
+        stats_card.setMinimumHeight(78)
+
+        stats = QHBoxLayout(stats_card)
+        stats.setContentsMargins(18, 14, 18, 14)
+        stats.setSpacing(24)
+
+        self.timer_label = QLabel("00:00:00")
+        self.timer_label.setObjectName("timer")
+        self.timer_label.setMinimumWidth(145)
+
+        status_col = QVBoxLayout()
+        status_col.setSpacing(3)
+
+        self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet(
+            "font-weight: 700; font-size: 15px;"
+        )
+
+        self.detail_label = QLabel(
+            "0.0 FPS • 0 B estimated"
+        )
+        self.detail_label.setObjectName("muted")
+
+        status_col.addWidget(self.status_label)
+        status_col.addWidget(self.detail_label)
+
+        stats.addWidget(self.timer_label)
+        stats.addLayout(status_col)
+        stats.addStretch(1)
+
         outer.addWidget(stats_card)
 
-        self.preview = QLabel("Preview")
-        self.preview.setAlignment(Qt.AlignCenter); self.preview.setMinimumHeight(150); self.preview.setMaximumHeight(240)
-        self.preview.setStyleSheet("background:#08090b;border-radius:12px;color:#68727e;")
+        # ---------------------------------------------------------
+        # Preview
+        # ---------------------------------------------------------
+        self.preview = QLabel("Live preview")
+        self.preview.setAlignment(Qt.AlignCenter)
+
+        self.preview.setMinimumHeight(110)
+        self.preview.setMaximumHeight(220)
+
+        self.preview.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
+        )
+
+        self.preview.setStyleSheet(
+            """
+            QLabel {
+                background: #08090b;
+                border: 1px solid #242930;
+                border-radius: 12px;
+                color: #68727e;
+            }
+            """
+        )
+
         outer.addWidget(self.preview, 1)
 
+        # ---------------------------------------------------------
+        # Controls
+        # ---------------------------------------------------------
         controls = QHBoxLayout()
-        self.pause_btn = QPushButton("Pause"); self.pause_btn.setEnabled(False); self.pause_btn.clicked.connect(self._pause_resume)
-        self.start_btn = QPushButton("Start Recording"); self.start_btn.setObjectName("startButton"); self.start_btn.clicked.connect(self._toggle_recording)
-        controls.addWidget(self.pause_btn); controls.addWidget(self.start_btn, 1)
+        controls.setSpacing(10)
+
+        self.pause_btn = QPushButton("Pause")
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setMinimumHeight(50)
+        self.pause_btn.setMinimumWidth(130)
+        self.pause_btn.clicked.connect(
+            self._pause_resume
+        )
+
+        self.start_btn = QPushButton("Start Recording")
+        self.start_btn.setObjectName("startButton")
+        self.start_btn.setMinimumHeight(50)
+        self.start_btn.clicked.connect(
+            self._toggle_recording
+        )
+
+        controls.addWidget(self.pause_btn)
+        controls.addWidget(self.start_btn, 1)
+
         outer.addLayout(controls)
 
-        hint = QLabel("Ctrl+Shift+R: start/stop • Esc: cancel region selection")
-        hint.setAlignment(Qt.AlignCenter); hint.setObjectName("muted"); outer.addWidget(hint)
+        # ---------------------------------------------------------
+        # Keyboard shortcut hint
+        # ---------------------------------------------------------
+        hint = QLabel(
+            "Ctrl+Shift+R: start/stop • "
+            "Esc: cancel region selection"
+        )
+
+        hint.setAlignment(Qt.AlignCenter)
+        hint.setObjectName("muted")
+
+        outer.addWidget(hint)
+
 
     def _apply_theme(self) -> None:
         QApplication.instance().setStyleSheet(DARK_STYLE if self._dark else LIGHT_STYLE)
