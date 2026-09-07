@@ -395,7 +395,7 @@ class WindowPicker(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Luma Recorder")
+        self.setWindowTitle("LuminaRec Recorder")
         self.resize(940, 700)
         self.setMinimumSize(720, 620)
         self.recorder = RecorderController()
@@ -436,7 +436,7 @@ class MainWindow(QMainWindow):
         title_col = QVBoxLayout()
         title_col.setSpacing(4)
 
-        title = QLabel("Luma Recorder")
+        title = QLabel("LuminaRec Recorder")
         title.setStyleSheet(
             "font-size: 26px; font-weight: 800;"
         )
@@ -744,7 +744,7 @@ class MainWindow(QMainWindow):
             self.window_info = None
             return True
         try:
-            windows = [w for w in list_x11_windows() if "Luma Recorder" not in w.title]
+            windows = [w for w in list_x11_windows() if "LuminaRec Recorder" not in w.title]
         except Exception as exc:
             QMessageBox.critical(self, "Window selection unavailable", str(exc)); return False
         if not windows:

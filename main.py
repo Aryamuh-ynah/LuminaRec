@@ -7,8 +7,8 @@ from ui import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
-    app.setApplicationName("Luma Recorder")
-    app.setOrganizationName("Luma Recorder")
+    app.setApplicationName("LuminaRec Recorder")
+    app.setOrganizationName("LuminaRec Recorder")
     window = MainWindow()
     window.show()
     return app.exec()
