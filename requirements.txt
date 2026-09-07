@@ -1,0 +1,6 @@
+mss>=9.0
+PySide6>=6.6
+numpy>=1.24
+opencv-python>=4.8
+dbus-next>=0.2.3
+pynput>=1.7.6
