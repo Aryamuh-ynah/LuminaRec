@@ -51,6 +51,7 @@ Run:
 ```bash
 python main.py
 ```
+To turn this program into an installed app, copy and paste the command from `run.txt` in the terminal of this app directory.
 
 ## How capture works
 
